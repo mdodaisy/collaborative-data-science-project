@@ -21,6 +21,9 @@ library(vegan)
 library(BiodiversityR)
 library(modelr)
 library(tidybayes)
+library(ggplot2)
+library(tibble)
+
 ```
 
 ## Research Question
@@ -52,28 +55,26 @@ head(per.cover.data)
 Combine the metadata with the percent cover data.
 
 ```{r}
-# rename image name column to match that in the metadata
-#per.cover.data <- per.cover.data %>%
- # rename("Image.name" = `Image name`)
-
-# join the two together
 benthic.data <- metadata %>%
   left_join(per.cover.data)
 ```
 
-Now, we have to calculate the average percent cover for each category at each transect. To do this, we first must `gather()` our data so that we have a column for the categories and a column for the percent cover of each category.
+Now, we have to calculate the average percent cover for each category at each transect. To do this, we first must `gather()` our data so that we have a column for the categories and a column for the percent cover of each category. At this time, we will also add a new column with the names of the reef zones: lagoon, forereef, backreef.
 
 ```{r}
 benthic.data <- benthic.data %>%
-  gather(key = category, value = percent_cover, 9:69) # gather all category columns into one column, "category"
+  gather(key = category, value = percent_cover, 9:69) %>% # gather all category columns into one column, "category"
+  mutate(Habitat = case_when(Site == "BZE_CBC_BACKREEF" ~ "Backreef",
+                            Site == "BZE_CBC_FOREREEF" ~ "Forereef",
+                            Site == "BZE_whaleShoal" ~ "Lagoon")) # add a column with habitat types
 ```
 
 Next, we can group by Site, Transect, and Category to calculate the average percent cover for each category at each transect across the ten quadrats.
 
 ```{r}
-transect.cover <- benthic.data %>%
-  group_by(Site, Transect, category) %>%
-  summarize(transect_cover = sum(percent_cover)/1000) # divide by 100 because there are 10 quadrats in a single transect: 100% * 10
+category.cover <- benthic.data %>%
+  group_by(Habitat, Transect, category) %>%
+  summarize(transect_cover = sum(percent_cover)/1000) # divide by 1000 because there are 10 quadrats in a single transect: 100% * 10
 head(transect.cover)
 ```
 
@@ -81,7 +82,7 @@ This dataset now shows the proportion of each category found in each transect. H
 
 ```{r}
 # classify functional groups
-func.group.cover <- transect.cover %>%
+func.group.cover <- category.cover %>%
   mutate(func_group = case_match(
     category,
     
@@ -121,48 +122,46 @@ func.group.cover <- transect.cover %>%
 # calculate percent cover for each functional group in each transect
 func.group.cover <- func.group.cover %>%
   select(-category) %>%
-  group_by(Site, Transect, func_group) %>%
-  summarise(transect_cover = sum(transect_cover)) %>%  #We sum because different categories were grouped
-  mutate(Habitat = case_when(Site == "BZE_CBC_BACKREEF" ~ "Backreef",
-                            Site == "BZE_CBC_FOREREEF" ~ "Forereef",
-                            Site == "BZE_whaleShoal" ~ "Lagoon"))
+  group_by(Habitat, Transect, func_group) %>%
+  summarise(transect_cover = sum(transect_cover)) # use `sum()` because different categories were grouped
 head(func.group.cover)
 ```
 
-After calculating the percent cover of each functional group on each transect, we need to format the data in a "wide" format for the Principal Component Analysis
+After calculating the percent cover of each functional group for each transect, we need to format the data into "wide" format using `spread()` for Principal Component Analyses. Thus, each row is an observation and each column is a unique variable. 
 
 ```{r}
-# get wide format
 benthic.wide <- func.group.cover %>% 
-  spread(func_group, transect_cover, fill = 0)
+  spread(key = func_group, value = transect_cover, fill = 0) # set missing values as "0"
 head(benthic.wide)
 ```
 
-Now, we need to split the metadata (containing the information of the sites and Transect) and the community-matrix (containing the cover percentage of each functional group on each transect) before performing a Principal Coordinate Analysis (PCoA).
+## Principal Coordinate Analysis
+Principal Coordinate Analysis (PCoA) is a technique used to visualize multidimensional data. Since we have benthic cover data (functional group abundances from 0-1), it is best to use the Bray-Curtis distance measure to calculate pairwise distances between each transect in our dataset. This will, ultimately, form a distance matrix that we can then analyze using PCoA to determine how similar or different the benthic cover of each transect is to one another.
+
+First, we need to split the metadata (containing the information of the sites and Transect) and the community-matrix (containing the percent cover of each functional group on each transect) into two separate datasets before performing a PCoA.
 
 ```{r}
-library(dplyr)
-library(vegan)
-library(ggplot2)
-library(tibble)
-
-# Split metadata and community matrix- so that only imporatant metadata remains (site code and habitat type.)
+# create metadata
 benthic.meta <- benthic.wide %>%
-  select(Site, Transect)
+  select(Habitat, Transect)
 
+# create percent cover dataset
 benthic.base <- benthic.wide %>%
-  select(-Site, -Transect)
-
+  ungroup() %>%
+  select(-Habitat, -Transect)
 ```
 
-The `vegdist()` calculates pairwise dissimilarities between pairs of transects. It will yield the absolute difference in cover across all functional groups:: Ecologically it will represent the “Total amount of compositional change between two transects”
-
-The `wcmdscale` performs a Principal Coordinate Analysis:: It takes the distance matrix and finds coordinates in a Euclidean space that best preserve those distances. `k = 2` → project into 2 dimensions (for plotting). `eig = TRUE` → returns eigenvalues (variance explained per axis). Unlike a PCA (Principal Component Analysis), the PCoA handles any distance matrix (manhattan, Bray-Curtis). PCA only handles Euclidian distances.
+Next, we need to create our distance matrix. This can be done using the `vegdist()` function which calculates pairwise dissimilarities between pairs of transects. Essentially, this will yield the absolute difference in percent cover across all functional groups — ecologically, it will represent the “total amount of compositional change between two transects.”
 
 ```{r}
 #  Distance matrix using a Manhattan distance: 
 benthic.base <- benthic.wide[-c(1:3)]
 benthic.dist <- vegdist(benthic.base, method = "manhattan")
+```
+
+The `wcmdscale()` function performs a Principal Coordinate Analysis. It takes the distance matrix and finds coordinates in a Euclidean space that best preserve those distances. `k = 2` → project into 2 dimensions (for plotting). `eig = TRUE` → returns eigenvalues (variance explained per axis). Unlike PCA (Principal Component Analysis) that works directly on Euclidean distances, PCoA accepts any distance matrix (e.g., Manhattan, Bray-Curtis).
+
+```{r}
 # Then perform PCoA with the wcmdscale() function from the vegan package
 benthic.pcoa.noscores <- wcmdscale(benthic.dist, k = 2, eig = TRUE)
 summary(benthic.pcoa.noscores)
@@ -263,6 +262,11 @@ cm.data <- benthic.wide %>%
   mutate(Habitat = case_when(Site == "BZE_CBC_BACKREEF" ~ "Backreef",
                             Site == "BZE_CBC_FOREREEF" ~ "Forereef",
                             Site == "BZE_whaleShoal" ~ "Lagoon"))
+
+# checking distribution of coral
+p1 <- benthic.wide %>%
+  ggplot(aes(x= Coral)) +
+  geom_histogram()
 ```
 
 run the Bayesian model
