@@ -157,10 +157,8 @@ benthic.base <- benthic.wide %>%
 
 The `vegdist()` calculates pairwise dissimilarities between pairs of transects. It will yield the absolute difference in cover across all functional groups:: Ecologically it will represent the “Total amount of compositional change between two transects”
 
-The `wcmdscale` performs a Principal Coordinate Analysis:: It takes the distance matrix and finds coordinates in a Euclidean space that best preserve those distances.
-`k = 2` → project into 2 dimensions (for plotting).
-`eig = TRUE` → returns eigenvalues (variance explained per axis).
-Unlike a PCA (Principal Component Analysis), the PCoA handles any distance matrix (manhattan, Bray-Curtis). PCA only handles Euclidian distances.
+The `wcmdscale` performs a Principal Coordinate Analysis:: It takes the distance matrix and finds coordinates in a Euclidean space that best preserve those distances. `k = 2` → project into 2 dimensions (for plotting). `eig = TRUE` → returns eigenvalues (variance explained per axis). Unlike a PCA (Principal Component Analysis), the PCoA handles any distance matrix (manhattan, Bray-Curtis). PCA only handles Euclidian distances.
+
 ```{r}
 #  Distance matrix using a Manhattan distance: 
 benthic.base <- benthic.wide[-c(1:2)]
@@ -170,18 +168,19 @@ benthic.pcoa.noscores <- wcmdscale(benthic.dist, k = 2, eig = TRUE)
 summary(benthic.pcoa.noscores)
 ```
 
-Now we need to extract the scores or the coordinates for two different components of the ordination
-1- The species scores: which will be the scores for the functional groups (columns in the distance matrix)
-2- The site scores: which will be the coordinates for the Transects (rows in the distance matrix)
+Now we need to extract the scores or the coordinates for two different components of the ordination 1- The species scores: which will be the scores for the functional groups (columns in the distance matrix) 2- The site scores: which will be the coordinates for the Transects (rows in the distance matrix)
 
-1_ species scores:
+1\_ species scores:
+
 ```{r}
 #add.spec.scores:
 benthic.pcoa <- BiodiversityR::add.spec.scores(benthic.pcoa.noscores, benthic.base, Rscale=TRUE, scaling=1, multi=1)
 benthic.pcoa$cproj
 
 ```
+
 Now lets compile this information into a tidy table:
+
 ```{r}
 #  Species loadings extracted as a dataset - they will become the segments from the "eigenvalues"
 benthic.species <- as.data.frame(benthic.pcoa$cproj) %>%
@@ -190,6 +189,7 @@ head(benthic.species)
 ```
 
 2_Site scores
+
 ```{r}
 # Site scores
 benthic.pcoa.scores <- as_tibble(benthic.pcoa$points, .name_repair = "minimal") %>%
@@ -202,6 +202,7 @@ head(benthic.pcoa.scores)
 ```
 
 Something else that we have to do, is to extract the information to plot the convex hulls of each site.
+
 ```{r}
 benthic.hulls <- benthic.pcoa.scores %>%
   group_by(Site) %>%
@@ -250,10 +251,10 @@ benthic.plot
 
 RESULTS: The lack of overlap between covex hulls indicate that each reef habitat has distinct benthic communities. The lagoon has greater abundance of macroalgae, while the backreef has higher coral abundance.
 
-Now, we are interested in understanding what are the potential factors driving coral abundance?
-For that we will perform a Bayesian Generalized Linear Model using the package brms.
+Now, we are interested in understanding what are the potential factors driving coral abundance? For that we will perform a Bayesian Generalized Linear Model using the package brms.
 
 First we need to extract the macroalgae and the coral abundance data in a tidy way
+
 ```{r}
 func.group.cover
 
@@ -265,6 +266,7 @@ cm.data <- benthic.wide %>%
 ```
 
 run the Bayesian model
+
 ```{r}
 library(brms)
 coral.glm <- brm(Coral ~ Habitat * Macroalgae + (1|Transect), data = cm.data)
@@ -272,6 +274,7 @@ summary(coral.glm)
 ```
 
 Now lets explore the predictions of the model for the categorical variable
+
 ```{r}
 habitat.effect <- cm.data %>%
   data_grid(Habitat = unique(Habitat),  # Use all unique levels of 'Site'
@@ -291,7 +294,7 @@ habitat.effect <- cm.data %>%
 habitat.effect
 ```
 
-
+Plot the effect of macroalgae cover for coral cover
 ```{r}
 macroalgae.effect <- cm.data %>%
   data_grid(Macroalgae = seq(
@@ -323,4 +326,3 @@ mac.effect <- macroalgae.effect %>%
 
 macroalgae.plot
 ```
-
