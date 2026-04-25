@@ -307,17 +307,10 @@ macroalgae.effect <- cm.data %>%
   max(cm.data$Macroalgae, na.rm = TRUE),
   length.out = 100)) %>% 
   mutate(Habitat = "Backreef") %>% 
-  add_epred_draws(coral.glm, regex = T, ndraws = 200, re_formula = NA)
-
-mac.effect <- macroalgae.effect %>% 
-  group_by (Macroalgae, `.row`) %>% 
-  summarize(mean.cc = mean(`.epred`))
- 
+  add_epred_draws(coral.glm, regex = T, ndraws = 500, re_formula = NA)
 
    macroalgae.plot <- ggplot() +
-  #geom_point(data = multinomialdata, aes(x=Tem, y = logit()), alpha = 0.1, shape = 16) +
-  geom_line(data = mac.effect, aes(x = Macroalgae, y = mean.cc), color = "#9970AB", alpha = 1,
-            linewidth = 1)+
+  geom_line(data = macroalgae.effect, aes(x = Macroalgae, y = .epred, group = .draw), color = "#9970AB",   alpha = 1,linewidth = 0.1)+
   geom_point(data = cm.data, aes(y = Coral, x= Macroalgae), color = "#9970AB",
              fill = "#D3C0DD", alpha = 0.9,
             shape = 21, size = 3)+
