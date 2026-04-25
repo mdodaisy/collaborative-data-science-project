@@ -161,7 +161,7 @@ The `wcmdscale` performs a Principal Coordinate Analysis:: It takes the distance
 
 ```{r}
 #  Distance matrix using a Manhattan distance: 
-benthic.base <- benthic.wide[-c(1:2)]
+benthic.base <- benthic.wide[-c(1:3)]
 benthic.dist <- vegdist(benthic.base, method = "manhattan")
 # Then perform PCoA with the wcmdscale() function from the vegan package
 benthic.pcoa.noscores <- wcmdscale(benthic.dist, k = 2, eig = TRUE)
@@ -170,7 +170,7 @@ summary(benthic.pcoa.noscores)
 
 Now we need to extract the scores or the coordinates for two different components of the ordination 1- The species scores: which will be the scores for the functional groups (columns in the distance matrix) 2- The site scores: which will be the coordinates for the Transects (rows in the distance matrix)
 
-1\_ species scores:
+1_ species scores:
 
 ```{r}
 #add.spec.scores:
@@ -269,6 +269,7 @@ run the Bayesian model
 
 ```{r}
 library(brms)
+set.seed(690)
 coral.glm <- brm(Coral ~ Habitat * Macroalgae + (1|Transect), data = cm.data)
 summary(coral.glm)
 ```
