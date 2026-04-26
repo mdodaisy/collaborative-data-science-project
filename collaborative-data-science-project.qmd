@@ -282,13 +282,13 @@ set.seed(690) # ensure that random sampling yields the same results every time
 coral.glm <- brm(Coral ~ Habitat * Macroalgae + (1|Transect), data = cm.data, family = "beta")
 summary(coral.glm)
 ```
+According to the model, there is no evidence that habitat nor macroalgae significantly shift coral cover (wide CIs). 
 
-Now lets explore the predictions of the model for the categorical variable
-
+Let's explore the predictions of the model for the categorical variable
 ```{r}
 set.seed(690)
 habitat.effect <- cm.data %>%
-  data_grid(Habitat = unique(Habitat),  # Use all unique levels of 'Site'
+  data_grid(Habitat = unique(Habitat),  # use all unique levels of 'Habitat'
             Macroalgae = mean(Macroalgae, na.rm = TRUE)) %>%
   add_epred_draws(coral.glm, regex = T, ndraws = 200, re_formula = NA) %>%  # re_formula = NA for marginal effects
   ggplot(aes(x = Habitat, y = .epred, color = Habitat, fill = Habitat)) +
