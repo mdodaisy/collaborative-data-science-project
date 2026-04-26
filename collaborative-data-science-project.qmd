@@ -271,24 +271,15 @@ cm.data <- benthic.wide %>%
   select(Habitat, Transect, Coral, Macroalgae) %>%
   mutate(Habitat = as.factor(Habitat),
          Transect = as.factor(Transect))
-
-cm.df <- as.data.frame(cm.data)
 ```
 
 run the Bayesian model
 
 ```{r}
 library(brms)
-<<<<<<< HEAD
 set.seed(690) # ensure that random sampling yields the same results every time
 
-coral.glm <- brm(formula = Coral ~ Macroalgae, data = cm.df)
-
-coral.glm <- brm(Coral ~ Habitat * Macroalgae + (1|Transect), data = cm.data, family = Beta())
-=======
-set.seed(690)
 coral.glm <- brm(Coral ~ Habitat * Macroalgae + (1|Transect), data = cm.data, family = "beta")
->>>>>>> e3595f45d6a11bf3b9f821abe43b3e325629eae7
 summary(coral.glm)
 ```
 
