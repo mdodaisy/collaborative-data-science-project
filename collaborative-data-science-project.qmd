@@ -255,7 +255,7 @@ benthic.plot <- ggplot() +
 benthic.plot
 ```
 
-**RESULTS:** The lack of overlap between convex hulls indicates that each reef habitat has a distinct benthic community. The species loadings show that the lagoon has a greater abundance of macroalgae, while the backreef has higher coral abundance.
+**Results:** The lack of overlap between convex hulls indicates that each reef habitat has a distinct benthic community. The species loadings show that the lagoon has a greater abundance of macroalgae, while the backreef has higher coral abundance.
 
 ## Generalized Linear Model
 
@@ -270,7 +270,8 @@ cm.data <- benthic.wide %>%
   ungroup() %>%
   select(Habitat, Transect, Coral, Macroalgae) %>%
   mutate(Habitat = as.factor(Habitat),
-         Transect = as.factor(Transect))
+         Transect = as.factor(Transect)) %>%
+  mutate(Transect = seq(1:18)) # change transect IDs to be unique observations
 
 # plot coral vs. macroalgae
 coral.algae.plot <- cm.data %>%
@@ -293,7 +294,7 @@ coral.habitat.plot <- cm.data %>%
 
 coral.algae.plot + coral.habitat.plot
 ```
-As we can see from these two plots, there appears to be trends in the abundance of coral with macroalgae and reef habitat. So, we can use modeling to determine the significance/size of those trends.
+As we can see from these two plots, there *appears* to be trends in the abundance of coral with macroalgae and reef habitat. So, we can use modeling to determine the significance/size of those trends.
 
 To test whether we will need to use a general linear model or a generalized linear model, we must check the normality of coral abundance, our response variable. 
 ```{r}
@@ -308,17 +309,17 @@ From the histogram, you can see that coral abundance is **not** normally distrib
 
 #### Running the model
 
-We will perform a Bayesian Generalized Linear Model using the package `{brms}`. Our model, in this case, will consist of macroalgae cover and habitat as predictor variables and coral cover as our response variable. We also will need to include transect as a random effect to account for quadrats taken within the same transect. Bayesian modeling was chosen over frequentist modeling to test the probability of the reef habitats being different from one another.
+We will perform a Bayesian Generalized Linear Model using the package `{brms}`. Our model, in this case, will consist of macroalgae cover and habitat as predictor variables and coral cover as our response variable. *We also will need to include transect as a random effect to account for quadrats taken within the same transect.* Bayesian modeling was chosen over frequentist modeling to test the probability of the reef habitats being different from one another.
 
 Now we know that we need to run a generalized linear model using the argument `family =  beta.`
 ```{r}
 set.seed(690) # ensure that random sampling yields the same results every time
 
 # run the model
-coral.glm <- brm(Coral ~ Habitat * Macroalgae + (1|Transect), data = cm.data, family = "beta")
+coral.glm <- brm(Coral ~ Habitat * Macroalgae, data = cm.data, family = "beta")
 summary(coral.glm)
 ```
-According to the model, there is no evidence that habitat nor macroalgae significantly drive coral cover (really wide confidence intervals). However, there are slight, non-significant trends that as macroalgae increases, coral cover decreases and as habitat moves inshore towards the lagoon, coral cover decreases as well.
+**Results:** According to the model, there are no detectable effects of habitat, macroalgae cover, or their interaction on coral cover, as all parameter estimates have very wide credible intervals that span zero. *However, there are slight, non-significant trends that as macroalgae increases, coral cover decreases and as habitat moves inshore towards the lagoon, coral cover decreases as well.*
 
 #### Coral ~ Habitat
 
@@ -352,6 +353,7 @@ habitat.effect <- cm.data %>%
 
 habitat.effect
 ```
+**Results:** The wide posterior distributions and overlapping credible intervals suggest that habitat has no clear effect on coral cover.
 
 #### Coral ~ Macroalgae
 
@@ -389,8 +391,49 @@ macroalgae.effect <- cm.data %>%
   ylab("Predicted coral cover (%)") +
   theme(plot.margin = unit(c(0,0,0,0), 'lines'))
 
-macroalgae.plot
+macroalgae.effect
 ```
+**Results:** The majority of the posterior draws exhibit an inverse relationship with macroalgae cover and coral cover, however, the lines cross each other repeatedly and show no strong trend. 
+
+#### Plot 3 Alternative
+```{r}
+macroalgae.effect.smooth <- cm.data %>%
+  
+    # create a data grid that holds 100 random values of macroalgae cover across the observed range
+  data_grid(Macroalgae = seq(
+    min(cm.data$Macroalgae, na.rm = TRUE),
+    max(cm.data$Macroalgae, na.rm = TRUE),
+    length.out = 100)) %>% 
+  
+  # fix habitat to a single level so we can visualize the marginal effect of macroalgae on coral cover
+  mutate(Habitat = "Backreef") %>% 
+  
+  # add predicted coral cover values from the model
+  add_epred_draws(coral.glm, 
+                  regex = T, 
+                  ndraws = 500, # takes 500 posterior draws of coral cover
+                  re_formula = NA) %>% # exclude random effects (i.e., transect)
+  
+  # compute the median predicted coral cover at each macroalgae value and its associated 95% credible intervals
+  median_qi(.epred) %>%
+  
+  # plot the predicted coral cover values against macroalgae cover
+  ggplot(aes(x = Macroalgae, y = .epred)) +
+  geom_ribbon(aes(ymin = .lower, ymax = .upper), fill = "#9970AB", alpha = 0.2) + # plot credible intervals
+  geom_line(color = "#9970AB", linewidth = 1) + # plot predicted median line
+  geom_point(data = cm.data, aes(x = Macroalgae, y = Coral), color = "#9970AB", fill = "#D3C0DD", shape = 21, size = 3) +
+  theme_bw() +
+  coord_cartesian(ylim = c(0, 0.2)) +
+  xlab("Macroalgae cover (%)") +
+  ylab("Predicted coral cover (%)")
+
+macroalgae.effect.smooth
+
+```
+
+## Conclusions
+The three reef zones examined in this study differ in their benthic community composition, such that the lagoon is dominated by seagrass and macroalgae whereas the back reef is characterized by coral, epilithic algal matrix (EAM), and cyanobacteria. Despite these clear community differences, the model detected no measurable effects of habitat, macroalgae cover, or their interaction on coral cover, even though the raw data suggested weak declines in coral cover from the back reef to the lagoon and with increaing macroalgae. Therefore, while benthic assemblages vary greatly across reef zones in Belize, coral cover appears to be driven by neither habitat nor macroalgae abundance.
+
 ## Acknowledgements
 This project draws on data generated through research conducted by Juan Pablo Lozano-Peña and Megan Cai Do.
 
