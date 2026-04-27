@@ -21,12 +21,13 @@ knitr::opts_chunk$set(warning = FALSE,
 library(tidyverse)
 library(vegan)
 library(BiodiversityR)
-library(modelr)
-library(tidybayes)
+#library(modelr)
+#library(tidybayes)
 library(ggplot2)
 library(tibble)
 library(patchwork)
 library(brms)
+library(ggrepel)
 ```
 
 ## Research Question
@@ -299,7 +300,7 @@ To test whether we will need to use a general linear model or a generalized line
 benthic.wide %>%
   ggplot(aes(x= Coral)) +
   geom_histogram() +
-  theme_classic() +
+  theme_bw() +
   xlab("Coral Abundance") +
   ylab("Count")
 ```
