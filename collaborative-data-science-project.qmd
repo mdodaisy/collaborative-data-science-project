@@ -391,6 +391,7 @@ macroalgae.effect <- cm.data %>%
             color = "#9970AB",   
             alpha = 1,
             linewidth = 0.1) +
+  geom_point(data = cm.data, aes(x = Macroalgae, y = Coral), color = "#9970AB", fill = "#D3C0DD", shape = 21, size = 3) +
   theme_bw() +
   coord_cartesian(ylim = c(0, 0.2)) +
   xlab("Macroalgae cover (%)") +
