@@ -68,9 +68,10 @@ Now, we have to calculate the average percent cover for each category at each tr
 ```{r}
 benthic.data <- benthic.data %>%
   gather(key = category, value = percent_cover, 9:69) %>% # gather all category columns into one column, "category"
-  mutate(Habitat = case_when(Site == "BZE_CBC_BACKREEF" ~ "Backreef",
+  mutate(Habitat = case_when(Site == "BZE_CBC_BACKREEF" ~ "Backreef", # add a column with habitat types 
                             Site == "BZE_CBC_FOREREEF" ~ "Forereef",
-                            Site == "BZE_whaleShoal" ~ "Lagoon")) # add a column with habitat types
+                            Site == "BZE_whaleShoal" ~ "Lagoon"),
+         Habitat = factor(Habitat, levels = c("Lagoon", "Backreef", "Forereef"))) # reorder the levels of those habitats to mirror the gradient
 ```
 
 Next, we can group by Habitat, Transect, and Category to calculate the average percent cover for each category at each transect.
@@ -165,6 +166,11 @@ The `wcmdscale()` function performs a Principal Coordinate Analysis. It takes th
 ```{r}
 benthic.pcoa.noscores <- wcmdscale(benthic.dist, k = 2, eig = TRUE)
 summary(benthic.pcoa.noscores)
+
+# extract the percentage of variance explained by each principal coordinate axis
+eig.vals <- benthic.pcoa.noscores$eig
+var.explained <- eig.vals/sum(eig.vals[eig.vals > 0])
+var.explained
 ```
 
 Now, we need to extract the scores, or the coordinates, for two different components of the ordination: 1) the species scores: scores for the functional groups (columns in the distance matrix) and 2) the site scores: scores for the transects (rows in the distance matrix).
@@ -249,13 +255,18 @@ benthic.plot <- ggplot() +
   scale_color_manual(values = c("#FB9A29", "#CC6677", "#9970AB")) + 
   scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB")) +
   scale_shape_manual(values = c(21, 22, 23)) +
-  labs(x = "Dimension 1", y = "Dimension 2") +
+  labs(x = "Dimension 1 (46.7%)", y = "Dimension 2 (18.0%)") + # include percentage of variance explained by each dimension from var.explained
   theme_classic()
 
 benthic.plot
 ```
 
 **Results:** The lack of overlap between convex hulls indicates that each reef habitat has a distinct benthic community. The species loadings show that the lagoon has a greater abundance of macroalgae, while the backreef has higher coral abundance.
+
+```{r}
+permanova <- adonis2(benthic.dist ~ Habitat, data = benthic.meta, permutations = 999)
+permanova
+```
 
 ## Generalized Linear Model
 
@@ -309,7 +320,7 @@ From the histogram, you can see that coral abundance is **not** normally distrib
 
 #### Running the model
 
-We will perform a Bayesian Generalized Linear Model using the package `{brms}`. Our model, in this case, will consist of macroalgae cover and habitat as predictor variables and coral cover as our response variable. *We also will need to include transect as a random effect to account for quadrats taken within the same transect.* Bayesian modeling was chosen over frequentist modeling to test the probability of the reef habitats being different from one another.
+We will perform a Bayesian Generalized Linear Model using the package `{brms}`. Our model, in this case, will consist of macroalgae cover and habitat as predictor variables and coral cover as our response variable. *We also will need to include transect as a random effect to account for quadrats taken within the same transect.* Bayesian modeling was chosen over frequentist modeling because it is well suited for small datasets with high variability. Bayesian models provide full posterior distributions and credible intervals that allow us to evaluate the probability of habitat and macroalgae effects on coral cover even with limited sample size.
 
 Now we know that we need to run a generalized linear model using the argument `family =  beta.`
 ```{r}
@@ -339,17 +350,15 @@ habitat.effect <- cm.data %>%
                   re_formula = NA) %>%  # exclude random effects (i.e., transect)
   
   # plot the predicted coral values by each habitat
-  ggplot(aes(x = Habitat, y = .epred, color = Habitat, fill = Habitat)) +
+  ggplot(aes(x = .epred, y = Habitat, color = Habitat, fill = Habitat)) +
   stat_histinterval(alpha = 0.8, justification = -0.2) + # plots distribution of predicted values
   
   # aesthetics
   theme_bw() +
-  coord_cartesian(ylim = c(0, 0.3)) +
-  xlab("Habitat") +
-  ylab("Predicted coral cover (%)") +
+  xlab("Predicted coral cover (%)") +
+  ylab("Habitat") +
   scale_color_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))+
-  scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))+
-  theme(plot.margin = unit(c(0,0,0,0), 'lines'))
+  scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))
 
 habitat.effect
 ```
@@ -374,7 +383,7 @@ macroalgae.effect <- cm.data %>%
   add_epred_draws(coral.glm, 
                   regex = T, 
                   ndraws = 500, # takes 500 posterior draws of coral cover
-                  re_formula = NA) %>% # exclude random effects (i.e., transect)
+                  re_formula = NA) %>% # exclude random effects (i.e., transect) %>%
 
   # plot the predicted coral cover values against macroalgae cover
   ggplot() +
@@ -382,9 +391,6 @@ macroalgae.effect <- cm.data %>%
             color = "#9970AB",   
             alpha = 1,
             linewidth = 0.1) +
-  geom_point(data = cm.data, aes(y = Coral, x = Macroalgae), color = "#9970AB",
-             fill = "#D3C0DD", alpha = 0.9,
-            shape = 21, size = 3)+
   theme_bw() +
   coord_cartesian(ylim = c(0, 0.2)) +
   xlab("Macroalgae cover (%)") +
