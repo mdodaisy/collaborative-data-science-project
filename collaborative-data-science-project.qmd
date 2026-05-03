@@ -29,11 +29,18 @@ library(ggplot2)
 library(tibble)
 library(gridExtra)
 library(ggrepel)
+# install_github(carly-dempsey04/collaborativedatasciencepackage)
+library(collaborativedatasciencepackage)
 ```
 
-## Research Question
+## Introduction
+In 2025, benthic imagery was collected on SCUBA across three reef zones (lagoon, back reef, and fore reef) of the Mesoamerican barrier reef in Belize, spanning an inshore to offshore shelf gradient. This gradient exhibits increasing wind and wave exposure towards the open ocean, with the fore reef experiencing the highest wave action. Additionally, lagoonal reefs receive higher nutrient inputs from anthropogenic activities, increasing nutrient concentrations and likely increasing water turbidity. Such environmental differences likely structure benthic communities across the three reef zones. 
+\
+\
+At each zone, six 50m transects were conducted by taking quadrat photos every 5m, yielding ten photos per transect. Images were then analyzed using CoralNet, an automated benthic cover annotation platform, to quantify percent cover of benthic taxa within each quadrat. With these data, we are interested in examining two questions:
 
-##### *How does benthic cover vary across three reef zones of the Belize Barrier Reef?*
+1. ***How does benthic cover vary across three reef zones of the Belize Barrier Reef?***
+2. ***How is coral abundance influenced by habitat type and macroalgae abundance?***
 
 ## Visualization of Data
 
@@ -57,7 +64,7 @@ kable(head(per.cover.data))
 
 ## Data Wrangling
 
-First, we need to combine the metadata with the percent cover data.
+Before we begin our analyses, we first must wrangle our data so it's ready for downstream analyses. First, we need to combine the metadata with the percent cover data.
 
 ```{r}
 benthic.data <- metadata %>%
@@ -65,7 +72,7 @@ benthic.data <- metadata %>%
 kable(head(benthic.data)) 
 ```
 
-Now, we have to calculate the average percent cover for each category at each transect. To do this, we first must `gather()` our data so that we have a column of the category names and a column for the percent cover of each category. At this time, we will also add a new column with the names of the reef habitats: lagoon, forereef, backreef.
+Now, we have to calculate the average percent cover for each category at each transect. To do this, we first must `gather()` our data so that we have a column of the category names and a column for the percent cover of each category. At this time, we will also add a new column with the names of the reef habitats: lagoon, fore reef, back reef.
 
 ```{r}
 benthic.data <- benthic.data %>%
@@ -145,6 +152,8 @@ head(benthic.wide)
 
 ## Data Analysis
 
+#### *1) How does benthic cover vary across three reef zones of the Belize Barrier Reef?*
+
 ### Principal Coordinate Analysis
 Principal Coordinate Analysis (PCoA) is a technique used to visualize multidimensional data. Since we have benthic cover data (functional group abundances from 0-1), we can use the Manhattan distance measure to calculate pairwise distances between each transect in our dataset. This will, ultimately, form a distance matrix that we can then analyze using PCoA to determine how similar or different the benthic cover of each transect is to one another.  
 *Note: The Bray-Curtis distance measure could also be used for abundance data, but here we chose the Manhattan distance to analyze the absolute differences in percent cover, rather than relative metrics.*
@@ -210,52 +219,12 @@ head(benthic.hulls)
 
 Now we have everything to plot our PCoA: species scores, site scores, and convex hulls.
 
+Using the `benthic_plot()` function from our created package, we can easily create the PCoA from our species scores, site scores, and convex hull data. Please see the [Supplementary Material](#Supplementary Material) for the original code used to create this plot.
 ```{r}
-benthic.plot <- ggplot() +
-  
-   # plot species loadings as vectors
-   geom_segment(data = benthic.species.scores,
-    aes(x = 0, y = 0, xend = Dim1, yend = Dim2),
-    arrow = arrow(length = unit(0.2, "cm")),
-    color = "grey10",
-    linewidth = 0.4) +
-  
-  # plot ellipses
-  stat_ellipse(data = benthic.site.scores,
-    aes(Dim1, Dim2, color = Habitat), type = "norm",
-    linetype = 2) +
-  
-  # plot convex hulls
-  geom_polygon(data = benthic.hulls,
-    aes(Dim1, Dim2, fill = Habitat, group = Habitat),
-    alpha = 0.6, color = "grey23",
-    linewidth = 0.1) +
-  
-  # plot habitat coordinates
-  geom_point(data = benthic.site.scores,
-    aes(Dim1, Dim2, fill = Habitat, shape = Habitat),
-    size = 3, alpha=0.9) +
-  
-  # add species labels
-  ggrepel::geom_text_repel(
-    data = benthic.species.scores,
-    aes(Dim1, Dim2, label = species),
-    fontface = "bold") +
-  
-  # aesthetics
-  theme(
-    axis.text = element_text(color = "black", size = 12),
-    text = element_text(color = "black", size = 6)) +
-  scale_color_manual(values = c("#FB9A29", "#CC6677", "#9970AB")) + 
-  scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB")) +
-  scale_shape_manual(values = c(21, 22, 23)) +
-  labs(x = "Dimension 1 (46.7%)", y = "Dimension 2 (18.0%)") + # include percentage of variance explained by each dimension from var.explained
-  theme_classic()
-
-benthic.plot
+benthic_plot(benthic.species.scores, benthic.site.scores, benthic.hulls)
 ```
 
-**Results:** The lack of overlap between convex hulls indicates that each reef habitat has a distinct benthic community. The species loadings show that the lagoon has a greater abundance of macroalgae and seagrass, while the backreef has higher EAM, cyanobacteria, and coral abundance. The forereef has a community composition that is both a mix of the lagoon and backreef.
+**Results:** The lack of overlap between convex hulls indicates that each reef habitat has a distinct benthic community. The species loadings show that the lagoon has a greater abundance of macroalgae and seagrass, while the back reef has higher EAM, cyanobacteria, and coral abundance. The fore reef has a community composition that is both a mix of the lagoon and back reef.
 
 While there seems to be distinct separation in the community composition of the reef habitats, it is important to statistically validate these visual differences. To do this, we can run a PERMANOVA using the `adonis2()` function that tests whether the separations are statistically significant.
 ```{r}
@@ -264,6 +233,9 @@ permanova
 ```
 
 **Results:** The difference between habitat types is statistically significant (p = 0.001), and habitat explains 54.1% of the variation in community composition between the transects.
+
+
+#### *2) How is coral abundance influenced by habitat type and macroalgae abundance?*
 
 ### Generalized Linear Model
 
@@ -318,15 +290,19 @@ From the histogram, you can see that coral abundance is **not** normally distrib
 
 #### Running the model
 
-We will perform a Bayesian Generalized Linear Model using the package `{brms}`. Our model, in this case, will consist of macroalgae cover and habitat as predictor variables and coral cover as our response variable. Bayesian modeling was chosen over frequentist modeling because it is well suited for small datasets with high variability. Bayesian models provide full posterior distributions and credible intervals that allow us to evaluate the magnitude and uncertainty of habitat and macroalgae effects on coral cover even with limited sample size.
+We will perform a Bayesian Generalized Linear Model using the package `{brms}`. Our model, in this case, will consist of macroalgae cover and habitat as predictor variables and coral cover as our response variable. Bayesian modeling was chosen over frequentist modeling because it is well suited for small datasets with high variability. Bayesian models provide full posterior distributions and credible intervals that allow us to evaluate the magnitude and uncertainty of habitat and macroalgae effects on coral cover even with a limited sample size.
 
 Now, we will run a generalized linear model using the argument `family = beta.`
 ```{r}
 #| cache: false
 
 # run the model
+
+# {brms} is not yet compatible with the new R version 4.6.0; for users with this version, they may load in the model output from the associated github
 if (file.exists("coral_model.rds")) {
   coral.glm <- readRDS("coral_model.rds")
+  
+# for users with a working {brms} package
 } else {
   coral.glm <- brm(Coral ~ Habitat * Macroalgae,
                    data = cm.data,
@@ -340,34 +316,11 @@ summary(coral.glm)
 
 #### Coral ~ Habitat
 
-Let's explore the model predictions for solely the categorical variable, habitat, on coral cover.
+Let's explore the model predictions for solely the categorical variable, habitat, on coral cover. Using the `habitat_effect()` function from our created package, we can easily create the visualization of our predicted coral cover for each habitat. Please see the [Supplementary Material](#Supplementary Material) for the original code used to create this plot.
 ```{r}
-habitat.effect <- cm.data %>%
-  
-  # create a data grid that holds macroalgae fixed at its mean
-  # this allows us to isolate the effects of solely habitat on coral cover
-  data_grid(Habitat = unique(Habitat),  # use all unique levels of 'Habitat'
-            Macroalgae = mean(Macroalgae, na.rm = TRUE)) %>%
-  
-  # add predicted coral cover values from the model
-  add_epred_draws(coral.glm, 
-                  regex = T, 
-                  ndraws = 200, # takes 200 posterior draws of coral cover
-                  re_formula = NA) %>%  # exclude random effects (i.e., transect)
-  
-  # plot the predicted coral values by each habitat
-  ggplot(aes(x = .epred, y = Habitat, color = Habitat, fill = Habitat)) +
-  stat_histinterval(alpha = 0.8, justification = -0.2) + # plots distribution of predicted values
-  
-  # aesthetics
-  theme_bw() +
-  xlab("Predicted coral cover (%)") +
-  ylab("Habitat") +
-  scale_color_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))+
-  scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))
-
-habitat.effect
+habitat_effect(cm.data, coral.glm)
 ```
+
 **Results:** This figure shows the posterior predicted distributions of coral cover for each habitat, with the dots representing the medians and the lines representing the credible intervals. The fore reef appears to have the highest predicted coral cover, followed by the back reef and lagoon. However, the wide credible intervals suggest that we cannot confidently distinguish coral cover between the three habitats. Overall, though, all three habitats show heavily right-skewed distributions, meaning that low coral cover is most probable across all habitats.
 
 #### Coral ~ Macroalgae
@@ -376,7 +329,7 @@ Now let's look at solely the effects of macroalgae cover on coral cover.
 ```{r}
 macroalgae.effect <- cm.data %>%
   
-  # create a data grid that holds 100 random values of macroalgae cover across the observed range
+  # create a data grid that holds 100 evenly-spaced values of macroalgae cover across the observed range
   data_grid(Macroalgae = seq(
     min(cm.data$Macroalgae, na.rm = TRUE),
     max(cm.data$Macroalgae, na.rm = TRUE),
@@ -389,7 +342,7 @@ macroalgae.effect <- cm.data %>%
   add_epred_draws(coral.glm, 
                   regex = T, 
                   ndraws = 500, # takes 500 posterior draws of coral cover
-                  re_formula = NA) %>% # exclude random effects (i.e., transect) %>%
+                  seed = 690) %>%
 
   # plot the predicted coral cover values against macroalgae cover
   ggplot() +
@@ -397,7 +350,11 @@ macroalgae.effect <- cm.data %>%
             color = "#9970AB",   
             alpha = 1,
             linewidth = 0.1) +
+  
+  # plot the raw data points
   geom_point(data = cm.data, aes(x = Macroalgae, y = Coral), color = "#9970AB", fill = "#D3C0DD", shape = 21, size = 3) +
+  
+  # aesthetics
   theme_bw() +
   coord_cartesian(ylim = c(0, 0.2)) +
   xlab("Macroalgae cover (%)") +
@@ -477,3 +434,75 @@ This project draws on data generated through research conducted by Juan Pablo Lo
 * *Ulva* sp. (Ulva)
 * *Syringodium filiforme* (SyrFil)
 * *Thalassia testudinum* (ThalTes)
+
+## Supplementary Material
+```{r}
+#| eval: false
+
+benthic.plot <- ggplot() +
+  
+   # plot species loadings as vectors
+   geom_segment(data = benthic.species.scores,
+    aes(x = 0, y = 0, xend = Dim1, yend = Dim2),
+    arrow = arrow(length = unit(0.2, "cm")),
+    color = "grey10",
+    linewidth = 0.4) +
+  
+  # plot ellipses
+  stat_ellipse(data = benthic.site.scores,
+    aes(Dim1, Dim2, color = Habitat), type = "norm",
+    linetype = 2) +
+  
+  # plot convex hulls
+  geom_polygon(data = benthic.hulls,
+    aes(Dim1, Dim2, fill = Habitat, group = Habitat),
+    alpha = 0.6, color = "grey23",
+    linewidth = 0.1) +
+  
+  # plot transect coordinates
+  geom_point(data = benthic.site.scores,
+    aes(Dim1, Dim2, fill = Habitat, shape = Habitat),
+    size = 3, alpha=0.9) +
+  
+  # add species labels
+  ggrepel::geom_text_repel(
+    data = benthic.species.scores,
+    aes(Dim1, Dim2, label = species),
+    fontface = "bold") +
+  
+  # aesthetics
+  theme(
+    axis.text = element_text(color = "black", size = 12),
+    text = element_text(color = "black", size = 6)) +
+  scale_color_manual(values = c("#FB9A29", "#CC6677", "#9970AB")) + 
+  scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB")) +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  labs(x = "Dimension 1 (46.7%)", y = "Dimension 2 (18.0%)") + # include percentage of variance explained by each dimension from var.explained
+  theme_classic()
+```
+
+```{r}
+habitat.effect <- cm.data %>%
+  
+  # create a data grid that holds macroalgae fixed at its mean
+  # this allows us to isolate the effects of solely habitat on coral cover
+  data_grid(Habitat = unique(Habitat),  # use all unique levels of 'Habitat'
+            Macroalgae = mean(Macroalgae, na.rm = TRUE)) %>%
+  
+  # add predicted coral cover values from the model
+  add_epred_draws(coral.glm, 
+                  regex = T, 
+                  ndraws = 200, # takes 200 posterior draws of coral cover
+                  seed = 690) %>%
+  
+  # plot the predicted coral values by each habitat
+  ggplot(aes(x = .epred, y = Habitat, color = Habitat, fill = Habitat)) +
+  stat_histinterval(alpha = 0.8, justification = -0.2) + # plots distribution of predicted values
+  
+  # aesthetics
+  theme_bw() +
+  xlab("Predicted coral cover (%)") +
+  ylab("Habitat") +
+  scale_color_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))+
+  scale_fill_manual(values = c("#FB9A29", "#CC6677", "#9970AB"))
+```
